@@ -58,11 +58,17 @@ export default function Home() {
               Draft <b>4 players</b> and <b>3 teams</b> before the tournament kicks off — every
               pick is exclusive, so once a name&apos;s gone, it&apos;s gone. One roster, no trades, no waiver wire.
             </p>
+           <p className="rules-p">
+              Draft <b>4 players</b> and <b>3 teams</b> before the tournament kicks off — every
+              pick is exclusive, so once a name&apos;s gone, it&apos;s gone. Draft in any order;
+              whether you prioritise players or teams is entirely up to you.
+            </p>
             <p className="rules-p">
-              Your players bank <b>3 points a goal</b> and <b>1 an assist</b>. Your teams score for
-              <b> winning their group</b>, <b>reaching the knockouts</b>, every <b>round they survive</b>,
-              and <b>lifting the trophy</b>. Highest total when the final whistle blows in New Jersey
-              on <b>July 19</b> is the gaffer of the tournament.
+              Players bank <b>3 points a goal</b> and <b>1 an assist</b>. Teams earn
+              <b> 3 for winning their group</b>, <b>2 for reaching the knockouts</b>,
+              <b> 2 for every elimination round they win</b>, and <b>1 more for lifting the trophy</b>.
+              Highest total when the final whistle blows in New Jersey on <b>July 19</b> is the
+              gaffer of the tournament.
             </p>
             <Link href={enterHref} className="lp-cta" style={{ marginTop: 8 }}>{ctaLabel}</Link>
           </div>
