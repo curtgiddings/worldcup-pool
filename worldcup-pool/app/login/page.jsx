@@ -45,7 +45,7 @@ export default function Login() {
     <div className="wrap" style={{ maxWidth: 420 }}>
       <div className="kicker">WORLD CUP 2026 · CAN · MEX · USA</div>
       <h1 className="title">
-        THE <span className="accent">GAFFERS</span>
+        THE <span className="lime">GAFFERS</span>
       </h1>
       <p className="note" style={{ marginBottom: 22 }}>
         Draft 4 players + 3 teams. Goals, assists and how far your teams go all bank points.
