@@ -227,7 +227,7 @@ function AutoDraftPanel() {
     try {
       const [{ data: ord }, { data: queues }, { data: picks }, { data: profs }] = await Promise.all([
         supabase.from("draft_order").select("manager_ids").eq("id", 1).maybeSingle(),
-        supabase.from("draft_queue").select("manager_id,player_ids,team_ids"),
+        supabase.from("draft_queue").select("manager_id,queue"),
         supabase.from("picks").select("manager_id,pick_type,player_id,team_id"),
         supabase.from("profiles").select("id,display_name"),
       ]);
@@ -246,24 +246,26 @@ function AutoDraftPanel() {
       });
 
       const toInsert = [];
-      const fill = (rounds, field, taken, cnt, type) => {
-        for (let r = 0; r < rounds; r++) {
-          const seq = r % 2 === 0 ? ids : [...ids].reverse(); // snake
-          for (const mid of seq) {
-            if ((cnt[mid] || 0) >= rounds) continue;            // roster already full
-            const list = qById[mid]?.[field] || [];
-            const pick = list.find(id => !taken.has(id));        // best still-available
-            if (pick == null) continue;                          // queue exhausted / empty
-            taken.add(pick);
-            cnt[mid] = (cnt[mid] || 0) + 1;
-            toInsert.push(type === "player"
-              ? { manager_id: mid, pick_type: "player", player_id: pick }
-              : { manager_id: mid, pick_type: "team", team_id: pick });
+      for (let r = 0; r < 7; r++) {            // 4 players + 3 teams = 7 picks per manager
+        const seq = r % 2 === 0 ? ids : [...ids].reverse(); // snake
+        for (const mid of seq) {
+          if ((cntP[mid] || 0) >= 4 && (cntT[mid] || 0) >= 3) continue; // roster full
+          const list = Array.isArray(qById[mid]?.queue) ? qById[mid].queue : [];
+          const item = list.find(it =>
+            it.type === "player"
+              ? (cntP[mid] || 0) < 4 && !takenP.has(it.id)
+              : (cntT[mid] || 0) < 3 && !takenT.has(it.id)
+          );
+          if (!item) continue;
+          if (item.type === "player") {
+            takenP.add(item.id); cntP[mid] = (cntP[mid] || 0) + 1;
+            toInsert.push({ manager_id: mid, pick_type: "player", player_id: item.id });
+          } else {
+            takenT.add(item.id); cntT[mid] = (cntT[mid] || 0) + 1;
+            toInsert.push({ manager_id: mid, pick_type: "team", team_id: item.id });
           }
         }
-      };
-      fill(4, "player_ids", takenP, cntP, "player");
-      fill(3, "team_ids", takenT, cntT, "team");
+      }
 
       if (toInsert.length === 0) {
         setMsg("Nothing to assign — rosters are already full, or no queues have been set yet.");

@@ -1,21 +1,24 @@
 -- ============================================================
---  AUTO-DRAFT: preference queues + commissioner runner
---  Run this ONCE in the Supabase SQL editor (after schema.sql).
+--  AUTO-DRAFT: single combined preference queue + permissions
+--  Run this ONCE in the Supabase SQL editor (safe to re-run).
 -- ============================================================
 
--- Each manager's ranked preference lists. Arrays are in preference
--- order: player_ids[0] is their #1 target, etc.
+-- Each manager's ranked board: ONE list mixing players and teams,
+-- in preference order. Each element: { "type": "player"|"team", "id": <int> }.
 create table if not exists public.draft_queue (
   manager_id uuid primary key references public.profiles(id) on delete cascade,
-  player_ids int[] not null default '{}',
-  team_ids   int[] not null default '{}',
+  queue      jsonb not null default '[]'::jsonb,
   updated_at timestamptz not null default now()
 );
 
+-- Migrate older two-list version if it exists:
+alter table public.draft_queue add column if not exists queue jsonb not null default '[]'::jsonb;
+alter table public.draft_queue drop column if exists player_ids;
+alter table public.draft_queue drop column if exists team_ids;
+
 alter table public.draft_queue enable row level security;
 
--- Managers read/write their OWN queue; the commissioner may read everyone's
--- (needed to run the draft).
+-- Managers read/write their OWN queue; the commissioner may read everyone's.
 drop policy if exists "queue read"   on public.draft_queue;
 drop policy if exists "queue write"  on public.draft_queue;
 drop policy if exists "queue modify" on public.draft_queue;
@@ -26,9 +29,7 @@ create policy "queue write"  on public.draft_queue for insert to authenticated
 create policy "queue modify" on public.draft_queue for update to authenticated
   using (manager_id = auth.uid()) with check (manager_id = auth.uid());
 
--- Allow the commissioner to insert picks on behalf of everyone during the
--- auto-draft. (Regular managers still only insert their own, via the
--- existing "insert own picks" policy — both are OR'd together.)
+-- Let the commissioner insert picks on behalf of everyone during the auto-draft.
 drop policy if exists "admin inserts picks" on public.picks;
 create policy "admin inserts picks" on public.picks for insert to authenticated
   with check (public.is_admin());
