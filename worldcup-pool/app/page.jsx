@@ -1,18 +1,14 @@
 "use client";
-import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/useAuth";
 
 export default function Home() {
-  const router = useRouter();
   const { loading, user } = useAuth(false); // don't force login on the landing
 
-  useEffect(() => {
-    if (!loading && user) router.replace("/draft"); // signed-in → straight to the pool
-  }, [loading, user, router]);
+  if (loading) return <div className="wrap muted">Loading…</div>;
 
-  if (loading || user) return <div className="wrap muted">Loading…</div>;
+  const enterHref = user ? "/draft" : "/login";
+  const ctaLabel = user ? "GO TO MY DRAFT →" : "ENTER POOL →";
 
   return (
     <div className="lp">
@@ -20,7 +16,7 @@ export default function Home() {
 
       <nav className="lp-nav">
         <span className="lp-brand">THE <span>GAFFERS</span></span>
-        <Link href="/login" className="lp-enter">ENTER POOL</Link>
+        <Link href={enterHref} className="lp-enter">{user ? "MY DRAFT" : "ENTER POOL"}</Link>
       </nav>
 
       <main className="lp-hero">
@@ -49,7 +45,7 @@ export default function Home() {
             Draft <b>4 players</b> + <b>3 teams</b>. Goals, assists, and how far your teams go
             all bank points. Last gaffer standing wins.
           </p>
-          <Link href="/login" className="lp-cta">ENTER POOL →</Link>
+          <Link href={enterHref} className="lp-cta">{ctaLabel}</Link>
         </div>
       </main>
 
@@ -68,7 +64,7 @@ export default function Home() {
               and <b>lifting the trophy</b>. Highest total when the final whistle blows in New Jersey
               on <b>July 19</b> is the gaffer of the tournament.
             </p>
-            <Link href="/login" className="lp-cta" style={{ marginTop: 8 }}>ENTER POOL →</Link>
+            <Link href={enterHref} className="lp-cta" style={{ marginTop: 8 }}>{ctaLabel}</Link>
           </div>
 
           <div className="rules-stats">
