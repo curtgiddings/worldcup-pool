@@ -20,7 +20,7 @@ export default function Nav({ profile }) {
 
   return (
     <nav className="nav">
-      <Link href="/draft" className="brand">THE <span>GAFFERS</span></Link>
+      <Link href="/" className="brand">THE <span>GAFFERS</span></Link>
       {links.map(([href, label]) => (
         <Link key={href} href={href} className={path === href ? "active" : ""}>
           {label}
