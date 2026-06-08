@@ -24,6 +24,7 @@ export default function Login() {
           options: { data: { display_name: name.trim() } },
         });
         if (error) throw error;
+        // If email confirmation is OFF, a session exists immediately.
         if (data.session) router.replace("/draft");
         else setMsg("Account created. Check your email to confirm, then log in.");
       } else {

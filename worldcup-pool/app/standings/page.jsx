@@ -207,3 +207,4 @@ const TABLE_CSS = `
   .c-pts{font-size:23px;}
   .tbl-detail{grid-template-columns:1fr; gap:6px;}
 }
+`;
