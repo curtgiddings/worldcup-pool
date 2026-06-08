@@ -50,9 +50,11 @@ export default function Draft() {
   const teamById = Object.fromEntries(teams.map(t => [t.id, t]));
   const playerById = Object.fromEntries(players.map(p => [p.id, p]));
 
+  const norm = (s) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const q = norm(pSearch);
   const availablePlayers = players
     .filter(p => !takenPlayerIds.has(p.id))
-    .filter(p => p.name.toLowerCase().includes(pSearch.toLowerCase()));
+    .filter(p => q === "" || norm(p.name).includes(q) || norm(p.teams?.name).includes(q));
   const availableTeams = teams.filter(t => !takenTeamIds.has(t.id));
 
   async function addPlayer() {
@@ -80,6 +82,7 @@ export default function Draft() {
 
   return (
     <div className="wrap">
+      <style>{DRAFT_CSS}</style>
       <Nav profile={profile} />
       <div className="kicker">YOUR ROSTER</div>
       <h1 className="title">MY <span className="accent">DRAFT</span></h1>
@@ -97,17 +100,30 @@ export default function Draft() {
       })}
       {myPlayers.length < 4 && (
         <div className="card" style={{ marginTop: 4 }}>
-          <input className="input" placeholder="Search players…" value={pSearch}
+          <input className="input" placeholder="Search players or country…" value={pSearch}
+            autoComplete="off"
             onChange={(e) => { setPSearch(e.target.value); setPSel(""); }} />
-          <select className="input" style={{ marginTop: 8 }} value={pSel}
-            onChange={(e) => setPSel(e.target.value)}>
-            <option value="">Select a player…</option>
-            {availablePlayers.slice(0, 100).map(p => (
-              <option key={p.id} value={p.id}>{p.name} — {p.teams?.name}</option>
-            ))}
-          </select>
+          {!pSearch && <div className="results-hint">Start typing a name or country to see players.</div>}
+          {pSearch && (
+            <div className="results">
+              {availablePlayers.length === 0 && (
+                <div className="results-empty">No players match “{pSearch}”.</div>
+              )}
+              {availablePlayers.slice(0, 60).map(p => (
+                <button key={p.id} type="button"
+                  className={"result" + (pSel === String(p.id) ? " sel" : "")}
+                  onClick={() => setPSel(String(p.id))}>
+                  <span>{p.name}</span>
+                  <span className="muted">{p.teams?.name}</span>
+                </button>
+              ))}
+              {availablePlayers.length > 60 && (
+                <div className="results-empty">+{availablePlayers.length - 60} more — keep typing to narrow.</div>
+              )}
+            </div>
+          )}
           <button className="btn" style={{ marginTop: 10 }} disabled={!pSel} onClick={addPlayer}>
-            Add player
+            {pSel ? `Add ${playerById[pSel]?.name || "player"}` : "Add player"}
           </button>
         </div>
       )}
@@ -147,3 +163,15 @@ function friendly(m) {
   if (/4 players|3 teams/.test(m)) return m;
   return m;
 }
+
+const DRAFT_CSS = `
+.results{margin-top:8px; border:1px solid var(--line); border-radius:10px; overflow:hidden auto; max-height:300px;}
+.result{display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%;
+  text-align:left; background:transparent; border:0; border-bottom:1px solid var(--line);
+  padding:11px 14px; cursor:pointer; color:var(--ink); font-size:15px; font-family:inherit;}
+.result:last-child{border-bottom:0;}
+.result:hover{background:rgba(255,255,255,.05);}
+.result.sel{background:rgba(200,255,77,.12); box-shadow:inset 3px 0 0 var(--lime);}
+.result .muted{font-size:13px;}
+.results-empty, .results-hint{padding:11px 2px; color:var(--muted); font-size:13px;}
+`;
