@@ -24,7 +24,6 @@ export default function Login() {
           options: { data: { display_name: name.trim() } },
         });
         if (error) throw error;
-        // If email confirmation is OFF, a session exists immediately.
         if (data.session) router.replace("/draft");
         else setMsg("Account created. Check your email to confirm, then log in.");
       } else {
@@ -42,16 +41,26 @@ export default function Login() {
   }
 
   return (
-    <div className="wrap" style={{ maxWidth: 420 }}>
-      <div className="kicker">WORLD CUP 2026 · CAN · MEX · USA</div>
-      <h1 className="title">
-        THE <span className="lime">GAFFERS</span>
-      </h1>
-      <p className="note" style={{ marginBottom: 22 }}>
-        Draft 4 players + 3 teams. Goals, assists and how far your teams go all bank points.
-      </p>
+    <div className="login-page">
+      <style>{`
+        .login-page{min-height:100vh; display:flex; flex-direction:column;
+          align-items:center; justify-content:center; padding:32px 16px;}
+        .login-inner{width:100%; max-width:380px;}
+        .login-lockup{text-align:center; margin-bottom:22px;}
+        .login-lockup .title{font-size:clamp(44px,10vw,60px); line-height:.9; margin:8px 0 0;}
+        .login-card{padding:20px;}
+        .login-card .label:first-of-type{margin-top:4px;}
+      `}</style>
+      <div className="login-inner">
+        <div className="login-lockup">
+          <div className="kicker">WORLD CUP 2026 · CAN · MEX · USA</div>
+          <h1 className="title">THE <span className="lime">GAFFERS</span></h1>
+          <p className="note" style={{ marginTop: 10 }}>
+            Draft 4 players + 3 teams. Goals, assists, and how far your teams go all bank points.
+          </p>
+        </div>
 
-      <div className="card">
+        <div className="card login-card">
         <div className="row" style={{ marginBottom: 16, gap: 6 }}>
           <button
             className={"btn " + (mode === "signup" ? "" : "ghost")}
@@ -90,6 +99,7 @@ export default function Login() {
 
         <div className="err">{err}</div>
         {msg && <div className="note" style={{ color: "var(--lime)" }}>{msg}</div>}
+      </div>
       </div>
     </div>
   );
