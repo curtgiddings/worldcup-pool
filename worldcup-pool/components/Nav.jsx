@@ -9,7 +9,6 @@ export default function Nav({ profile }) {
   const router = useRouter();
   const links = [
     ["/draft", "My Draft"],
-    ["/queue", "Queue"],
     ["/draft-order", "Order"],
     ["/standings", "Standings"],
   ];
