@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useAuth } from "../lib/useAuth";
+import GafferMark from "../components/GafferMark";
 
 export default function Home() {
   const { loading, user } = useAuth(false); // don't force login on the landing
@@ -15,7 +16,7 @@ export default function Home() {
       <style>{LP_CSS}</style>
 
       <nav className="lp-nav">
-        <span className="lp-brand">THE <span>GAFFERS</span></span>
+        <span className="lp-brand"><GafferMark className="lp-mark" />THE <span>GAFFERS</span></span>
         <Link href={enterHref} className="lp-enter">{user ? "MY DRAFT" : "ENTER POOL"}</Link>
       </nav>
 
@@ -47,6 +48,7 @@ export default function Home() {
           </p>
           <Link href={enterHref} className="lp-cta">{ctaLabel}</Link>
         </div>
+
       </main>
 
       <section className="rules" id="how-it-works">
@@ -55,10 +57,6 @@ export default function Home() {
             <div className="lp-kicker">HOW IT WORKS</div>
             <h2 className="rules-h">PICK YOUR SQUAD.<br />OUTSCORE THE GROUP.</h2>
             <p className="rules-p">
-              Draft <b>4 players</b> and <b>3 teams</b> before the tournament kicks off — every
-              pick is exclusive, so once a name&apos;s gone, it&apos;s gone. One roster, no trades, no waiver wire.
-            </p>
-           <p className="rules-p">
               Draft <b>4 players</b> and <b>3 teams</b> before the tournament kicks off — every
               pick is exclusive, so once a name&apos;s gone, it&apos;s gone. Draft in any order;
               whether you prioritise players or teams is entirely up to you.
@@ -100,15 +98,18 @@ const LP_CSS = `
 .lp{min-height:100vh; display:flex; flex-direction:column;}
 .lp-nav{display:flex; align-items:center; justify-content:space-between;
   padding:20px 28px; position:relative; z-index:2;}
-.lp-brand{font-family:'Anton',sans-serif; font-size:22px; letter-spacing:.5px; text-transform:uppercase;}
+.lp-brand{font-family:'Anton',sans-serif; font-size:22px; letter-spacing:.5px; text-transform:uppercase;
+  display:inline-flex; align-items:center;}
 .lp-brand span{color:var(--lime);}
+.lp-mark{height:1.05em; width:auto; color:var(--lime); margin-right:.42em;}
+@media (max-width:480px){ .lp-mark{display:none;} }
 .lp-enter{font-family:'Archivo',sans-serif; font-weight:800; font-size:13px; letter-spacing:.5px;
   border:1.5px solid var(--lime); color:var(--lime); padding:10px 20px; border-radius:999px;
   text-transform:uppercase; transition:.15s;}
 .lp-enter:hover{background:var(--lime); color:#0a0a0a;}
 
 .lp-hero{flex:1; position:relative; display:flex; flex-direction:column; justify-content:flex-end;
-  padding:40px 28px 32px; overflow:hidden; min-height:calc(100vh - 76px);}
+  padding:40px 28px 32px; overflow:hidden;}
 .lp-pitch{position:absolute; inset:0; width:100%; height:100%; z-index:0;}
 .lp-content{position:relative; z-index:1; max-width:900px;}
 .lp-kicker{font-family:'Space Mono',monospace; font-size:12px; letter-spacing:3px;
