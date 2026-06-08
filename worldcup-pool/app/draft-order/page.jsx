@@ -157,6 +157,7 @@ export default function DraftOrder() {
                 )}
               </div>
               {snakeOpen && <Snake order={order} />}
+              {isAdmin && <AutoDraftPanel order={order} />}
             </>
           )}
         </>
@@ -207,6 +208,101 @@ function Snake({ order }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function AutoDraftPanel() {
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [short, setShort] = useState([]);
+
+  async function run() {
+    if (!window.confirm(
+      "Run the auto-draft now?\n\nThis walks the snake using everyone's saved queues and fills " +
+      "every empty roster slot with the best available pick on each list. Any picks already made are kept."
+    )) return;
+
+    setBusy(true); setMsg(""); setShort([]);
+    try {
+      const [{ data: ord }, { data: queues }, { data: picks }, { data: profs }] = await Promise.all([
+        supabase.from("draft_order").select("manager_ids").eq("id", 1).maybeSingle(),
+        supabase.from("draft_queue").select("manager_id,player_ids,team_ids"),
+        supabase.from("picks").select("manager_id,pick_type,player_id,team_id"),
+        supabase.from("profiles").select("id,display_name"),
+      ]);
+
+      const ids = ord?.manager_ids || [];
+      if (ids.length === 0) { setMsg("Set the draft order first (spin above)."); setBusy(false); return; }
+
+      const nameById = Object.fromEntries((profs || []).map(p => [p.id, p.display_name]));
+      const qById = Object.fromEntries((queues || []).map(q => [q.manager_id, q]));
+      const takenP = new Set((picks || []).filter(p => p.player_id).map(p => p.player_id));
+      const takenT = new Set((picks || []).filter(p => p.team_id).map(p => p.team_id));
+      const cntP = {}, cntT = {};
+      (picks || []).forEach(p => {
+        if (p.pick_type === "player") cntP[p.manager_id] = (cntP[p.manager_id] || 0) + 1;
+        else cntT[p.manager_id] = (cntT[p.manager_id] || 0) + 1;
+      });
+
+      const toInsert = [];
+      const fill = (rounds, field, taken, cnt, type) => {
+        for (let r = 0; r < rounds; r++) {
+          const seq = r % 2 === 0 ? ids : [...ids].reverse(); // snake
+          for (const mid of seq) {
+            if ((cnt[mid] || 0) >= rounds) continue;            // roster already full
+            const list = qById[mid]?.[field] || [];
+            const pick = list.find(id => !taken.has(id));        // best still-available
+            if (pick == null) continue;                          // queue exhausted / empty
+            taken.add(pick);
+            cnt[mid] = (cnt[mid] || 0) + 1;
+            toInsert.push(type === "player"
+              ? { manager_id: mid, pick_type: "player", player_id: pick }
+              : { manager_id: mid, pick_type: "team", team_id: pick });
+          }
+        }
+      };
+      fill(4, "player_ids", takenP, cntP, "player");
+      fill(3, "team_ids", takenT, cntT, "team");
+
+      if (toInsert.length === 0) {
+        setMsg("Nothing to assign — rosters are already full, or no queues have been set yet.");
+        setBusy(false); return;
+      }
+
+      const { error } = await supabase.from("picks").insert(toInsert);
+      if (error) { setMsg("Error: " + error.message); setBusy(false); return; }
+
+      const stillShort = ids
+        .map(id => ({ name: nameById[id] || "—", p: cntP[id] || 0, t: cntT[id] || 0 }))
+        .filter(s => s.p < 4 || s.t < 3);
+      setShort(stillShort);
+      setMsg(`Auto-draft complete — ${toInsert.length} picks assigned.`);
+    } catch (e) {
+      setMsg("Error: " + (e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: 14 }}>
+      <div className="label lime" style={{ marginTop: 0 }}>AUTO-DRAFT</div>
+      <p className="note" style={{ marginTop: 0 }}>
+        Runs the snake from everyone&apos;s saved queues and fills empty roster slots with the best
+        available pick on each list. Picks already made are kept. Safe to run again — it only fills
+        what&apos;s missing.
+      </p>
+      <button className="btn" style={{ width: "100%", marginTop: 4 }} disabled={busy} onClick={run}>
+        {busy ? "Drafting…" : "Run auto-draft"}
+      </button>
+      {msg && <div className="note" style={{ color: "var(--lime)", marginTop: 10 }}>{msg}</div>}
+      {short.length > 0 && (
+        <div className="note" style={{ marginTop: 8 }}>
+          Queue ran out for: {short.map(s => `${s.name} (${s.p}/4 players, ${s.t}/3 teams)`).join(" · ")}.
+          They can finish manually on My Draft, or add more to their queue and you can re-run.
+        </div>
+      )}
     </div>
   );
 }
