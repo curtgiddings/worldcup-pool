@@ -63,7 +63,7 @@ export default function Home() {
             </p>
             <p className="rules-p">
               Players bank <b>3 points a goal</b> and <b>1 an assist</b>. Teams earn
-              <b> 3 for winning their group</b>, <b>2 for reaching the knockouts</b>,
+              <b> 3 for winning their group</b>, <b>2 for advancing to the knockouts without winning it</b>,
               <b> 2 for every elimination round they win</b>, and <b>1 more for lifting the trophy</b>.
               Highest total when the final whistle blows in New Jersey on <b>July 19</b> is the
               gaffer of the tournament.
