@@ -27,6 +27,7 @@ export default function DraftOrder() {
   const [lockedDownTo, setLockedDownTo] = useState(0);
   const [tick, setTick] = useState(0);
   const [snakeOpen, setSnakeOpen] = useState(false);
+  const [spinLabel, setSpinLabel] = useState("");
   const tickRef = useRef(null);
   const spinningRef = useRef(false);
 
@@ -58,30 +59,44 @@ export default function DraftOrder() {
     return () => { supabase.removeChannel(ch); clearInterval(tickRef.current); };
   }, [load]);
 
-  function spin() {
-    if (profiles.length < 2) return;
-    const result = shuffle(profiles.map(p => ({ id: p.id, name: p.display_name })));
+  function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+  async function ceremony() {
+    if (profiles.length < 2 || spinningRef.current) return;
+    const base = profiles.map((p) => ({ id: p.id, name: p.display_name }));
+    const n = base.length;
+    const STEP = 600; // ms between row reveals
     spinningRef.current = true;
-    setOrder(result);
-    setPhase("spinning");
     setSnakeOpen(false);
-    const n = result.length;
+    setPhase("spinning");
+    setOrder(base);        // show the board immediately (rolling)
     setLockedDownTo(n);
-    tickRef.current = setInterval(() => setTick(t => t + 1), 80);
-    for (let k = n - 1; k >= 0; k--) {
-      setTimeout(() => setLockedDownTo(k), (n - 1 - k) * 850 + 400);
+    tickRef.current = setInterval(() => setTick((t) => t + 1), 80);
+
+    let final = base;
+    for (let round = 1; round <= 3; round++) {
+      const isFinal = round === 3;
+      setSpinLabel(isFinal ? "FINAL SPIN" : `SPIN ${round} OF 3`);
+      final = shuffle(base);
+      setOrder(final);
+      setLockedDownTo(n);  // scramble back to rolling
+      await wait(isFinal ? 1100 : 700);
+      for (let k = n - 1; k >= 0; k--) {
+        setTimeout(() => setLockedDownTo(k), (n - 1 - k) * STEP + 200);
+      }
+      await wait((n - 1) * STEP + 200 + (isFinal ? 1200 : 1000));
     }
-    setTimeout(async () => {
-      clearInterval(tickRef.current);
-      setPhase("idle");
-      setLockedDownTo(0);
-      await supabase.from("draft_order").upsert(
-        { id: 1, manager_ids: result.map(r => r.id), created_at: new Date().toISOString() },
-        { onConflict: "id" }
-      );
-      spinningRef.current = false;
-      load();
-    }, (n - 1) * 850 + 400 + 700);
+
+    clearInterval(tickRef.current);
+    setSpinLabel("");
+    setPhase("idle");
+    setLockedDownTo(0);
+    await supabase.from("draft_order").upsert(
+      { id: 1, manager_ids: final.map((r) => r.id), created_at: new Date().toISOString() },
+      { onConflict: "id" }
+    );
+    spinningRef.current = false;
+    load();
   }
 
   async function reset() {
@@ -107,13 +122,14 @@ export default function DraftOrder() {
           {isAdmin ? (
             <>
               <p className="note" style={{ marginTop: 0 }}>
-                Spin once everyone's signed up. It's a true random shuffle (crypto RNG) and
-                reveals last pick → first. The result saves for the whole group.
+                Spin once everyone&apos;s signed up. It spins <b style={{ color: "var(--ink)" }}>three times</b> for
+                show — only the third, final spin counts. True random shuffle (crypto RNG), revealed last
+                pick → first. The result saves for the whole group.
               </p>
               <p className="note">Managers signed up: <b style={{ color: "var(--ink)" }}>{profiles.length}</b></p>
               <button className="btn" style={{ width: "100%", marginTop: 8 }}
-                disabled={profiles.length < 2} onClick={spin}>
-                🎲 Spin the order
+                disabled={profiles.length < 2} onClick={ceremony}>
+                🎲 Spin the order — best of 3
               </button>
             </>
           ) : (
@@ -127,6 +143,7 @@ export default function DraftOrder() {
       {/* Reveal + locked order */}
       {order && (
         <>
+          {phase === "spinning" && spinLabel && <div className="dl-ceremony">{spinLabel}</div>}
           <div className="dl-board">
             {order.map((m, idx) => {
               const locked = idx >= lockedDownTo;
@@ -324,4 +341,8 @@ const LOCAL_CSS = `
 .dl-chip{background:var(--panel2); border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:12px; font-weight:600;}
 .dl-snake-round:first-of-type .dl-chip:first-child{border-color:var(--gold); color:var(--gold);}
 .btn.ghost.on{border-color:var(--lime); color:var(--lime);}
+.dl-ceremony{font-family:'Anton',sans-serif; font-size:clamp(22px,5vw,34px); letter-spacing:1.5px;
+  color:var(--lime); text-transform:uppercase; text-align:center; margin:2px 0 12px;
+  animation:dlPulse .8s ease-in-out infinite alternate;}
+@keyframes dlPulse{from{opacity:.5;}to{opacity:1;}}
 `;
