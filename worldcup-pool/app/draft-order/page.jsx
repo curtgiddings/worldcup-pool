@@ -62,7 +62,7 @@ export default function DraftOrder() {
   function wait(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
   async function ceremony() {
-    if (profiles.length < 2 || spinningRef.current) return;
+    if (profiles.length < 1 || spinningRef.current) return;
     const base = profiles.map((p) => ({ id: p.id, name: p.display_name }));
     const n = base.length;
     const STEP = 600; // ms between row reveals
@@ -128,7 +128,7 @@ export default function DraftOrder() {
               </p>
               <p className="note">Managers signed up: <b style={{ color: "var(--ink)" }}>{profiles.length}</b></p>
               <button className="btn" style={{ width: "100%", marginTop: 8 }}
-                disabled={profiles.length < 2} onClick={ceremony}>
+                disabled={profiles.length < 1} onClick={ceremony}>
                 🎲 Spin the order — best of 3
               </button>
             </>
