@@ -102,7 +102,6 @@ const LP_CSS = `
   display:inline-flex; align-items:center;}
 .lp-brand span{color:var(--lime);}
 .lp-mark{height:1.05em; width:auto; color:var(--lime); margin-right:.42em;}
-@media (max-width:480px){ .lp-mark{display:none;} }
 .lp-enter{font-family:'Archivo',sans-serif; font-weight:800; font-size:13px; letter-spacing:.5px;
   border:1.5px solid var(--lime); color:var(--lime); padding:10px 20px; border-radius:999px;
   text-transform:uppercase; transition:.15s;}
