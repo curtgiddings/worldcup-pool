@@ -24,7 +24,6 @@ export default function Nav({ profile }) {
       <style>{`
         .nav .brand{display:inline-flex; align-items:center;}
         .nav .brand-mark{height:1.05em; width:auto; color:var(--lime); margin-right:.42em;}
-        @media (max-width:480px){ .nav .brand-mark{display:none;} }
       `}</style>
       <nav className="nav">
         <Link href="/" className="brand"><GafferMark className="brand-mark" />THE <span>GAFFERS</span></Link>
