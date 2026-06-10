@@ -12,6 +12,7 @@ export default function Draft() {
   const [teams, setTeams] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [queue, setQueue] = useState([]);
+  const [autoDraft, setAutoDraft] = useState(false);
   const [search, setSearch] = useState("");
   const [now, setNow] = useState(Date.now());
   const [err, setErr] = useState("");
@@ -27,7 +28,7 @@ export default function Draft() {
       supabase.from("players").select("id,name,teams(name)").order("name"),
       supabase.from("teams").select("id,name").order("name"),
       supabase.from("profiles").select("id,display_name"),
-      supabase.from("draft_queue").select("queue").eq("manager_id", user.id).maybeSingle(),
+      supabase.from("draft_queue").select("queue,auto_draft").eq("manager_id", user.id).maybeSingle(),
     ]);
     setSt(s.data || null);
     setPicks(pk.data || []);
@@ -35,6 +36,7 @@ export default function Draft() {
     setTeams(tm.data || []);
     setProfiles(pf.data || []);
     setQueue(Array.isArray(q.data?.queue) ? q.data.queue : []);
+    setAutoDraft(!!q.data?.auto_draft);
     setReady(true);
   }, [user]);
 
@@ -121,6 +123,13 @@ export default function Draft() {
   };
   const addQ = (type, id) => { if (!inQueue(type, id)) persist([...queue, { type, id }]); setSearch(""); };
   const removeQ = (i) => persist(queue.filter((_, idx) => idx !== i));
+  const setAuto = async (next) => {
+    setAutoDraft(next);
+    await supabase.from("draft_queue").upsert(
+      { manager_id: user.id, auto_draft: next, updated_at: new Date().toISOString() },
+      { onConflict: "manager_id" }
+    );
+  };
   const moveQ = (i, dir) => {
     const j = i + dir; if (j < 0 || j >= queue.length) return;
     const n = [...queue]; [n[i], n[j]] = [n[j], n[i]]; persist(n);
@@ -199,6 +208,24 @@ export default function Draft() {
               <p className="note" style={{ margin: "2px 0 0" }}>Pick {cur + 1} of {total} · {fmt(remaining)} left on their clock</p>
             </>
           )}
+        </div>
+      )}
+
+      {/* AUTO-DRAFT TOGGLE */}
+      {st && st.status !== "complete" && (
+        <div className="card auto-row" style={{ marginTop: 14 }}>
+          <div className="auto-txt">
+            <div className="auto-h">Auto-draft{autoDraft && <span className="auto-on">ON</span>}</div>
+            <p className="note" style={{ margin: "3px 0 0" }}>
+              {autoDraft
+                ? "On — your top available queue pick is taken the instant it's your turn. You don't need to be here, so keep your queue deep."
+                : "Off — your turn waits for you until the clock runs out, then your queue picks for you."}
+            </p>
+          </div>
+          <button type="button" role="switch" aria-checked={autoDraft}
+            className={"toggle" + (autoDraft ? " on" : "")} onClick={() => setAuto(!autoDraft)}>
+            <span className="knob" />
+          </button>
         </div>
       )}
 
@@ -291,4 +318,15 @@ const CSS = `
 .qbtn:disabled{opacity:.3; cursor:default;}
 .qbtn.qx{color:var(--coral); border-color:rgba(255,90,60,.35);}
 .qbtn.draft{color:#0a0a0a; background:var(--lime); border-color:var(--lime); font-weight:700;}
+.auto-row{display:flex; align-items:center; justify-content:space-between; gap:14px;}
+.auto-txt{min-width:0;}
+.auto-h{font-family:'Anton',sans-serif; font-size:18px; text-transform:uppercase; letter-spacing:.5px;}
+.auto-on{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1px; color:#0a0a0a;
+  background:var(--lime); padding:2px 6px; border-radius:5px; margin-left:8px; vertical-align:2px;}
+.toggle{flex:none; width:52px; height:30px; border-radius:999px; border:1px solid var(--line);
+  background:var(--panel); position:relative; cursor:pointer; transition:background .15s, border-color .15s;}
+.toggle .knob{position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+  background:var(--muted); transition:left .15s, background .15s;}
+.toggle.on{background:rgba(200,255,77,.18); border-color:var(--lime);}
+.toggle.on .knob{left:25px; background:var(--lime);}
 `;

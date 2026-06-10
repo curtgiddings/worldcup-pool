@@ -21,6 +21,7 @@ export default function DraftOrder() {
   const { loading, profile } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [order, setOrder] = useState(null);     // [{id,name}] in pick order
+  const [autoSet, setAutoSet] = useState(() => new Set()); // manager_ids on auto-draft
   const [picksMade, setPicksMade] = useState(0);
   const [ready, setReady] = useState(false);
   const [phase, setPhase] = useState("idle");    // idle | spinning
@@ -33,13 +34,15 @@ export default function DraftOrder() {
 
   const load = useCallback(async () => {
     if (spinningRef.current) return; // don't clobber an in-progress reveal
-    const [{ data: pf }, { data: ord }, { count }] = await Promise.all([
+    const [{ data: pf }, { data: ord }, { count }, { data: flags }] = await Promise.all([
       supabase.from("profiles").select("id,display_name"),
       supabase.from("draft_order").select("manager_ids").eq("id", 1).maybeSingle(),
       supabase.from("picks").select("id", { count: "exact", head: true }),
+      supabase.rpc("auto_draft_flags"),
     ]);
     setProfiles(pf || []);
     setPicksMade(count || 0);
+    setAutoSet(new Set((flags || []).filter(f => f.auto_draft).map(f => f.manager_id)));
     if (ord && ord.manager_ids?.length) {
       const byId = Object.fromEntries((pf || []).map(p => [p.id, p.display_name]));
       setOrder(ord.manager_ids.map(id => ({ id, name: byId[id] || "—" })));
@@ -155,6 +158,7 @@ export default function DraftOrder() {
                   style={{ animationDelay: idx * 0.04 + "s" }}>
                   <div className="dl-pick">#{idx + 1}</div>
                   <div className="dl-name">{locked ? m.name : flick}</div>
+                  {locked && autoSet.has(m.id) && <div className="dl-auto">AUTO</div>}
                   {locked && first && <div className="dl-badge">1ST</div>}
                 </div>
               );
@@ -174,7 +178,7 @@ export default function DraftOrder() {
                 )}
               </div>
               {snakeOpen && <Snake order={order} />}
-              {isAdmin && <DraftControl />}
+              {isAdmin && <DraftControl autoCount={autoSet.size} totalManagers={profiles.length} />}
             </>
           )}
         </>
@@ -229,7 +233,7 @@ function Snake({ order }) {
   );
 }
 
-function DraftControl() {
+function DraftControl({ autoCount = 0, totalManagers = 0 }) {
   const [st, setStt] = useState(null);
   const [profs, setProfs] = useState([]);
   const [secs, setSecs] = useState(28800);
@@ -274,6 +278,10 @@ function DraftControl() {
             Starts the clocked snake draft. Each manager picks in turn; when their clock runs out, their
             queue auto-picks and it rolls on. Pick how long each person gets per turn:
           </p>
+          <p className="note" style={{ marginTop: 0 }}>
+            <b style={{ color: "var(--ink)" }}>{autoCount}</b> of {totalManagers} {autoCount === 1 ? "manager has" : "managers have"} auto-draft on
+            {autoCount > 0 ? " — their turns resolve instantly." : "."}
+          </p>
           <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
             {[[60, "1m"], [300, "5m"], [1800, "30m"], [3600, "1h"], [28800, "8h"], [86400, "24h"]].map(([v, l]) => (
               <button key={v} className={"btn ghost" + (secs === v ? " on" : "")} style={{ flex: "1 0 60px" }}
@@ -293,6 +301,10 @@ function DraftControl() {
             <b className="lime">Live</b> · Pick {cur + 1} of {order.length} · On the clock:{" "}
             <b style={{ color: "var(--ink)" }}>{nameById[order[cur]] || "—"}</b>
           </p>
+          <button className="btn ghost" style={{ width: "100%", marginBottom: 8 }} disabled={busy}
+            onClick={() => { if (window.confirm(`Autopick ${nameById[order[cur]] || "this manager"}'s top queue pick now and move on? Use this to unstick a no-show.`)) call("skip_current"); }}>
+            ⏭ Skip this pick (autopick from their queue)
+          </button>
           <div className="row" style={{ gap: 8 }}>
             <button className="btn ghost" style={{ flex: 1 }} disabled={busy}
               onClick={() => { if (window.confirm("Autopick every remaining pick now and finish the draft?")) call("finish_draft"); }}>
@@ -335,6 +347,8 @@ const LOCAL_CSS = `
 .dl-name{flex:1; font-size:19px; font-weight:800;}
 .dl-badge{font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1px; color:#0a1a0d;
   background:var(--gold); padding:4px 8px; border-radius:6px; font-weight:700;}
+.dl-auto{font-family:'Space Mono',monospace; font-size:9px; letter-spacing:1px; color:var(--lime);
+  border:1px solid rgba(200,255,77,.45); padding:4px 7px; border-radius:6px; font-weight:700;}
 .dl-snake-round{padding:9px 0; border-top:1px solid var(--line);}
 .dl-round-lbl{font-family:'Space Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--lime); margin-bottom:7px;}
 .dl-chips{display:flex; flex-wrap:wrap; gap:6px;}
