@@ -10,6 +10,7 @@ export default function Nav({ profile }) {
   const links = [
     ["/draft", "My Draft"],
     ["/draft-order", "Order"],
+    ["/board", "Board"],
     ["/standings", "Standings"],
   ];
   if (profile?.is_admin) links.push(["/admin", "Score Entry"]);
