@@ -1,15 +1,25 @@
 "use client";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../lib/useAuth";
 import GafferMark from "../components/GafferMark";
 
 export default function Home() {
   const { loading, user } = useAuth(false); // don't force login on the landing
+  const router = useRouter();
 
-  if (loading) return <div className="wrap muted">Loading…</div>;
+  // Already logged in? Skip the landing and go straight to standings.
+  useEffect(() => {
+    if (!loading && user) router.replace("/standings");
+  }, [loading, user, router]);
 
-  const enterHref = user ? "/draft" : "/login";
-  const ctaLabel = user ? "GO TO MY DRAFT →" : "ENTER POOL →";
+  // Show a loader while auth resolves OR while a logged-in user is being redirected,
+  // so the landing never flashes for someone who's signed in.
+  if (loading || user) return <div className="wrap muted">Loading…</div>;
+
+  const enterHref = "/login";
+  const ctaLabel = "ENTER POOL →";
 
   return (
     <div className="lp">
@@ -17,7 +27,7 @@ export default function Home() {
 
       <nav className="lp-nav">
         <span className="lp-brand"><GafferMark className="lp-mark" />THE <span>GAFFERS</span></span>
-        <Link href={enterHref} className="lp-enter">{user ? "MY DRAFT" : "ENTER POOL"}</Link>
+        <Link href={enterHref} className="lp-enter">ENTER POOL</Link>
       </nav>
 
       <main className="lp-hero">
