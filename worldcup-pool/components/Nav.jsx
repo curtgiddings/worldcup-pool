@@ -8,9 +8,8 @@ export default function Nav({ profile }) {
   const path = usePathname();
   const router = useRouter();
   const links = [
-    ["/draft", "My Draft"],
-    ["/board", "Board"],
     ["/standings", "Standings"],
+    ["/draft", "My Draft"],
     ["/draft-order", "Order"],
   ];
   if (profile?.is_admin) links.push(["/admin", "Score Entry"]);
