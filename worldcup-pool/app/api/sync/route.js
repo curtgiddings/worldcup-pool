@@ -24,7 +24,7 @@ const LEAGUE = 1;
 const SEASON = 2026;
 const FINISHED = new Set(["FT", "AET", "PEN"]);
 
-// --- name normalisation + fuzzy matching (handles accents + short names) ---
+// --- name normalisation + matching (handles accents + short names) ---
 const norm = (s) =>
   (s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -33,10 +33,15 @@ const toks = (s) => norm(s).split(" ").filter(Boolean);
 function nameMatch(draft, apiName) {
   const a = toks(draft), b = toks(apiName);
   if (!a.length || !b.length) return false;
-  const sb = new Set(b), sa = new Set(a);
-  if (a.every((t) => sb.has(t)) || b.every((t) => sa.has(t))) return true; // token subset either way
+  const sa = new Set(a), sb = new Set(b);
+  // reorder-tolerant subset match (handles "Son Heung-Min" vs "Heung-Min Son", middle names)
+  if (a.every((t) => sb.has(t)) || b.every((t) => sa.has(t))) return true;
+  // surname match ONLY if the first names are compatible (full match or initial).
+  // blocks same-surname / different-first-name mixups like Promise vs Jonathan David.
   const la = a[a.length - 1], lb = b[b.length - 1];
-  return la.length > 2 && la === lb; // last-name fallback
+  if (la.length < 3 || la !== lb) return false;
+  const fa = a[0], fb = b[0];
+  return fa === fb || (fa.length === 1 && fb.startsWith(fa)) || (fb.length === 1 && fa.startsWith(fb));
 }
 
 async function api(path) {
@@ -117,7 +122,7 @@ export async function GET(req) {
     for (const pl of drafted) {
       let hit = null;
       if (pl.api_id != null) hit = tallyArr.find((t) => t.apiId === pl.api_id);
-      if (!hit) hit = tallyArr.find((t) => nameMatch(pl.name, t.name));
+      if (!hit) hit = tallyArr.find((t) => !usedApiIds.has(t.apiId) && nameMatch(pl.name, t.name));
       const goals = hit?.goals || 0, assists = hit?.assists || 0;
       rows.push({ player_id: pl.id, goals, assists });
       if (hit) {
