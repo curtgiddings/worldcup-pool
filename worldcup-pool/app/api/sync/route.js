@@ -1,18 +1,9 @@
 // app/api/sync/route.js
 //
-// Phase 1 — player goals + assists.
-// Pulls finished World Cup 2026 fixtures from API-Football, reads goal events
-// (scorer + assist), tallies per drafted player, and upserts into player_stats —
-// exactly the table your Score Entry page writes to.
-//
-// Trigger:  GET /api/sync?key=YOUR_CRON_SECRET    (manual test in a browser)
-//           or an hourly cron with header  Authorization: Bearer YOUR_CRON_SECRET
-//
-// Env vars required (set in Vercel → Settings → Environment Variables):
-//   API_FOOTBALL_KEY          – your api-sports key
-//   SUPABASE_SERVICE_ROLE_KEY – your Supabase service_role (secret) key
-//   CRON_SECRET               – any random string you invent, to lock this endpoint
-//   (NEXT_PUBLIC_SUPABASE_URL is already in your env)
+// Phase 1 — player goals + assists  (writes player_stats)
+// Phase 2 — team group + knockout   (writes team_progress)
+// Group scoring: 1st = 3, 2nd = 2, 3rd-that-advanced = 1.
+// Knockout: 2 per win (max 5). Champion: +1.
 
 import { createClient } from "@supabase/supabase-js";
 
@@ -24,7 +15,6 @@ const LEAGUE = 1;
 const SEASON = 2026;
 const FINISHED = new Set(["FT", "AET", "PEN"]);
 
-// --- name normalisation + matching (handles accents + short names) ---
 const norm = (s) =>
   (s || "")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -34,14 +24,32 @@ function nameMatch(draft, apiName) {
   const a = toks(draft), b = toks(apiName);
   if (!a.length || !b.length) return false;
   const sa = new Set(a), sb = new Set(b);
-  // reorder-tolerant subset match (handles "Son Heung-Min" vs "Heung-Min Son", middle names)
   if (a.every((t) => sb.has(t)) || b.every((t) => sa.has(t))) return true;
-  // surname match ONLY if the first names are compatible (full match or initial).
-  // blocks same-surname / different-first-name mixups like Promise vs Jonathan David.
   const la = a[a.length - 1], lb = b[b.length - 1];
   if (la.length < 3 || la !== lb) return false;
   const fa = a[0], fb = b[0];
   return fa === fb || (fa.length === 1 && fb.startsWith(fa)) || (fb.length === 1 && fa.startsWith(fb));
+}
+
+const TEAM_ALIAS = {
+  "cote d ivoire": "ivory coast",
+  "cabo verde": "cape verde",
+  "turkiye": "turkey",
+  "czechia": "czech republic",
+  "korea republic": "south korea",
+  "united states": "usa",
+  "bosnia and herzegovina": "bosnia",
+  "ir iran": "iran",
+  "congo dr": "dr congo",
+};
+const teamCanon = (s) => { const n = norm(s); return TEAM_ALIAS[n] || n; };
+function teamNameMatch(poolName, apiName) {
+  const A = teamCanon(poolName), B = teamCanon(apiName);
+  if (!A || !B) return false;
+  if (A === B) return true;
+  const a = A.split(" ").filter(Boolean), b = B.split(" ").filter(Boolean);
+  const sa = new Set(a), sb = new Set(b);
+  return a.every((t) => sb.has(t)) || b.every((t) => sa.has(t));
 }
 
 async function api(path) {
@@ -57,14 +65,12 @@ async function api(path) {
 }
 
 export async function GET(req) {
-  // --- auth ---
   const secret = process.env.CRON_SECRET;
   const auth = req.headers.get("authorization") || "";
   const keyParam = new URL(req.url).searchParams.get("key");
   if (secret && auth !== `Bearer ${secret}` && keyParam !== secret) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
-
   if (!process.env.API_FOOTBALL_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
     return Response.json({ error: "missing env vars (API_FOOTBALL_KEY / SUPABASE_SERVICE_ROLE_KEY)" }, { status: 500 });
   }
@@ -76,25 +82,23 @@ export async function GET(req) {
   );
 
   try {
-    // 1) drafted players
+    // ===================== PHASE 1 — players =====================
     const { data: picks } = await supabase.from("picks").select("player_id").not("player_id", "is", null);
     const ids = [...new Set((picks || []).map((p) => p.player_id))];
-    if (!ids.length) return Response.json({ ok: true, note: "no drafted players yet" });
 
-    const { data: dp } = await supabase
-      .from("players").select("id,name,api_player_id,teams(name)").in("id", ids);
+    const { data: dp } = ids.length
+      ? await supabase.from("players").select("id,name,api_player_id,teams(name)").in("id", ids)
+      : { data: [] };
     const drafted = (dp || []).map((p) => ({
       id: p.id, name: p.name, api_id: p.api_player_id ?? null, team: p.teams?.name || "",
     }));
 
-    // 2) all fixtures -> finished ones
     const fixtures = await api(`/fixtures?league=${LEAGUE}&season=${SEASON}`);
     const finishedIds = fixtures
       .filter((f) => FINISHED.has(f.fixture?.status?.short))
       .map((f) => f.fixture.id);
 
-    // 3) batch event pulls (20 fixtures per call) -> tally goals/assists by api player id
-    const tally = new Map(); // apiId -> { name, goals, assists }
+    const tally = new Map();
     const bump = (pl, field) => {
       if (pl?.id == null) return;
       const t = tally.get(pl.id) || { name: pl.name, goals: 0, assists: 0 };
@@ -114,10 +118,9 @@ export async function GET(req) {
     }
     const tallyArr = [...tally.entries()].map(([apiId, v]) => ({ apiId, ...v }));
 
-    // 4) match drafted players -> tally
     const rows = [];
-    const learn = [];          // newly discovered api ids to persist
-    const scoring = [];        // drafted players with points, for the summary
+    const learn = [];
+    const scoring = [];
     const usedApiIds = new Set();
     for (const pl of drafted) {
       let hit = null;
@@ -128,22 +131,100 @@ export async function GET(req) {
       if (hit) {
         usedApiIds.add(hit.apiId);
         if (pl.api_id == null) learn.push({ id: pl.id, api_player_id: hit.apiId });
-        if (goals || assists) scoring.push(`${pl.name} → ${hit.name}: ${goals}G ${assists}A`);
+        if (goals || assists) scoring.push(`${pl.name} -> ${hit.name}: ${goals}G ${assists}A`);
       }
     }
-
-    // 5) write stats (same table/shape as manual Score Entry)
-    const { error } = await supabase.from("player_stats").upsert(rows, { onConflict: "player_id" });
-    if (error) return Response.json({ error: error.message }, { status: 500 });
-
-    // 6) remember the api ids we matched, so future syncs are ID-based and bulletproof
+    if (rows.length) {
+      const { error } = await supabase.from("player_stats").upsert(rows, { onConflict: "player_id" });
+      if (error) return Response.json({ error: error.message }, { status: 500 });
+    }
     for (const u of learn) await supabase.from("players").update({ api_player_id: u.api_player_id }).eq("id", u.id);
 
-    // debug: scorers/assisters the feed has that we did NOT match — scan for any drafted player we missed
     const unmatched = tallyArr
       .filter((t) => !usedApiIds.has(t.apiId) && (t.goals || t.assists))
       .sort((a, b) => (b.goals + b.assists) - (a.goals + a.assists))
       .map((t) => `${t.name}: ${t.goals}G ${t.assists}A`);
+
+    // ===================== PHASE 2 — teams =====================
+    let teamOut = { teamsSynced: 0, teamsNewlyMapped: 0, groupsFound: 0, teamScoring: [], teamsUnmatched: [] };
+    try {
+      const { data: tpicks } = await supabase.from("picks").select("team_id").not("team_id", "is", null);
+      const tids = [...new Set((tpicks || []).map((p) => p.team_id))];
+      if (tids.length) {
+        const { data: dt } = await supabase.from("teams").select("id,name,api_team_id").in("id", tids);
+        const draftedTeams = (dt || []).map((t) => ({ id: t.id, name: t.name, api_id: t.api_team_id ?? null }));
+
+        const standings = await api(`/standings?league=${LEAGUE}&season=${SEASON}`);
+        const groups = standings?.[0]?.league?.standings || [];
+        const groupWinners = new Set();
+        const apiNameById = new Map();
+        const rankById = new Map();
+        for (const g of groups) {
+          for (const r of g) {
+            if (r?.team?.id != null) { apiNameById.set(r.team.id, r.team.name); rankById.set(r.team.id, r.rank); }
+            if (r?.rank === 1 && r?.team?.id != null) groupWinners.add(r.team.id);
+          }
+        }
+
+        const koWins = new Map();
+        const reachedKO = new Set();
+        let championApiId = null;
+        for (const f of fixtures) {
+          const rnd = (f.league?.round || "").toLowerCase().trim();
+          if (rnd.includes("group")) continue;
+          const h = f.teams?.home, a = f.teams?.away;
+          if (h?.id != null) { reachedKO.add(h.id); apiNameById.set(h.id, h.name); }
+          if (a?.id != null) { reachedKO.add(a.id); apiNameById.set(a.id, a.name); }
+          if (!FINISHED.has(f.fixture?.status?.short)) continue;
+          const isThird = rnd.includes("3rd place") || rnd.includes("third place") || rnd.includes("play-off");
+          const winner = h?.winner ? h : a?.winner ? a : null;
+          if (winner?.id != null) {
+            if (!isThird) koWins.set(winner.id, (koWins.get(winner.id) || 0) + 1);
+            if (rnd === "final") championApiId = winner.id;
+          }
+        }
+
+        const teamRows = [];
+        let teamLearn = 0;
+        for (const t of draftedTeams) {
+          let apiId = t.api_id;
+          if (apiId == null) {
+            for (const [aid, aname] of apiNameById) {
+              if (teamNameMatch(t.name, aname)) { apiId = aid; break; }
+            }
+            if (apiId != null) {
+              await supabase.from("teams").update({ api_team_id: apiId }).eq("id", t.id);
+              teamLearn++;
+            }
+          }
+          if (apiId == null) { teamOut.teamsUnmatched.push(t.name); continue; }
+
+          const won_group = groupWinners.has(apiId);
+          const reached_knockout = reachedKO.has(apiId) && !won_group;
+          const third_place = reached_knockout && rankById.get(apiId) === 3;
+          const elim_wins = Math.min(5, koWins.get(apiId) || 0);
+          const champion = championApiId != null && championApiId === apiId;
+          teamRows.push({ team_id: t.id, won_group, reached_knockout, third_place, elim_wins, champion });
+
+          const bits = [];
+          if (won_group) bits.push("won group");
+          else if (third_place) bits.push("advanced (3rd)");
+          else if (reached_knockout) bits.push("reached KO");
+          if (elim_wins) bits.push(`${elim_wins} KO win${elim_wins > 1 ? "s" : ""}`);
+          if (champion) bits.push("champion");
+          if (bits.length) teamOut.teamScoring.push(`${t.name}: ${bits.join(" · ")}`);
+        }
+        if (teamRows.length) {
+          const { error: terr } = await supabase.from("team_progress").upsert(teamRows, { onConflict: "team_id" });
+          if (terr) throw new Error(terr.message);
+        }
+        teamOut.teamsSynced = teamRows.length;
+        teamOut.teamsNewlyMapped = teamLearn;
+        teamOut.groupsFound = groups.length;
+      }
+    } catch (te) {
+      teamOut.teamError = te.message;
+    }
 
     return Response.json({
       ok: true,
@@ -151,7 +232,8 @@ export async function GET(req) {
       draftedSynced: rows.length,
       newlyMappedPlayers: learn.length,
       scoringDraftedPlayers: scoring,
-      apiScorersNotMatched: unmatched,   // <- eyeball these for anyone of yours we failed to match
+      apiScorersNotMatched: unmatched,
+      ...teamOut,
     });
   } catch (e) {
     return Response.json({ error: e.message }, { status: 500 });
