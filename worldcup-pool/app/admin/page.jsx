@@ -6,9 +6,9 @@ import Nav from "../../components/Nav";
 
 export default function Admin() {
   const { loading, profile } = useAuth();
-  const [players, setPlayers] = useState([]); // drafted players w/ stats
-  const [teams, setTeams] = useState([]);     // drafted teams w/ progress
-  const [allTeams, setAllTeams] = useState([]); // every team, for the add-player form
+  const [players, setPlayers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [allTeams, setAllTeams] = useState([]);
   const [nf, setNf] = useState({ name: "", team_id: "", position: "FW" });
   const [addMsg, setAddMsg] = useState("");
   const [ready, setReady] = useState(false);
@@ -146,9 +146,9 @@ export default function Admin() {
         <div className="card" style={{ marginBottom: 9, padding: 14 }} key={t.id}>
           <div style={{ fontWeight: 700, marginBottom: 10 }}>{t.name}</div>
           <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
-            <Toggle on={t.won_group} onClick={() => saveTeam(t, { won_group: !t.won_group })}>Won group +3</Toggle>
-            <Toggle on={t.reached_knockout} onClick={() => saveTeam(t, { reached_knockout: !t.reached_knockout })}>Reached R32 +2</Toggle>
-            <Toggle on={t.third_place} onClick={() => saveTeam(t, { third_place: !t.third_place })}>3rd place +1</Toggle>
+            <Toggle on={t.won_group} onClick={() => saveTeam(t, { won_group: !t.won_group })}>Won group +4</Toggle>
+            <Toggle on={t.reached_knockout} onClick={() => saveTeam(t, { reached_knockout: !t.reached_knockout })}>Reached R32 +3</Toggle>
+            <Toggle on={t.third_place} onClick={() => saveTeam(t, { third_place: !t.third_place })}>3rd place +2</Toggle>
             <Toggle on={t.champion} onClick={() => saveTeam(t, { champion: !t.champion })}>Champion +1</Toggle>
             <div className="toggle" style={{ gap: 10 }}>
               <span>Elim wins +2</span>
