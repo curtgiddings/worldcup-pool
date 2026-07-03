@@ -45,6 +45,7 @@ export default function Admin() {
         ...t,
         won_group: progMap[t.id]?.won_group || false,
         reached_knockout: progMap[t.id]?.reached_knockout || false,
+        third_place: progMap[t.id]?.third_place || false,
         elim_wins: progMap[t.id]?.elim_wins || 0,
         champion: progMap[t.id]?.champion || false,
       })).sort((a, b) => a.name.localeCompare(b.name));
@@ -72,7 +73,7 @@ export default function Admin() {
   async function saveTeam(t, patch) {
     const next = {
       team_id: t.id, won_group: t.won_group, reached_knockout: t.reached_knockout,
-      elim_wins: t.elim_wins, champion: t.champion, ...patch,
+      third_place: t.third_place, elim_wins: t.elim_wins, champion: t.champion, ...patch,
     };
     setTeams(ts => ts.map(x => x.id === t.id ? { ...x, ...patch } : x));
     await supabase.from("team_progress").upsert(next, { onConflict: "team_id" });
@@ -147,6 +148,7 @@ export default function Admin() {
           <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
             <Toggle on={t.won_group} onClick={() => saveTeam(t, { won_group: !t.won_group })}>Won group +3</Toggle>
             <Toggle on={t.reached_knockout} onClick={() => saveTeam(t, { reached_knockout: !t.reached_knockout })}>Reached R32 +2</Toggle>
+            <Toggle on={t.third_place} onClick={() => saveTeam(t, { third_place: !t.third_place })}>3rd place +1</Toggle>
             <Toggle on={t.champion} onClick={() => saveTeam(t, { champion: !t.champion })}>Champion +1</Toggle>
             <div className="toggle" style={{ gap: 10 }}>
               <span>Elim wins +2</span>
