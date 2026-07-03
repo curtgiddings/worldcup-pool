@@ -22,7 +22,7 @@ export default function Standings() {
       supabase.from("players").select("id,name,teams(name)"),
       supabase.from("player_stats").select("player_id,goals,assists"),
       supabase.from("teams").select("id,name"),
-      supabase.from("team_progress").select("team_id,won_group,reached_knockout,elim_wins,champion"),
+      supabase.from("team_progress").select("team_id,won_group,reached_knockout,third_place,elim_wins,champion"),
     ]);
     setRows((sc.data || []).sort((a, b) => b.total - a.total));
     setPicks(pk.data || []);
@@ -51,29 +51,20 @@ export default function Standings() {
   const progById = Object.fromEntries(prog.map(tp => [tp.team_id, tp]));
 
   const teamPts = (tp) => tp
-    ? (tp.won_group ? 3 : 0)
-      + (tp.reached_knockout && !tp.won_group ? 2 : 0)
+    ? (tp.won_group ? 3 : tp.third_place ? 1 : tp.reached_knockout ? 2 : 0)
       + (tp.elim_wins || 0) * 2
       + (tp.champion ? 1 : 0)
     : 0;
 
-  // Breakdown line for a team: each bonus with the points it earned.
   const teamLabel = (tp) => {
     if (!tp) return "No result yet";
     const parts = [];
-    if (tp.won_group) parts.push("Won group +3");
-    else if (tp.reached_knockout) parts.push("Reached knockouts +2");
-    if (tp.elim_wins) parts.push(`${tp.elim_wins} KO win${tp.elim_wins > 1 ? "s" : ""} +${tp.elim_wins * 2}`);
-    if (tp.champion) parts.push("Champion +1");
+    if (tp.won_group) parts.push("Won group");
+    else if (tp.third_place) parts.push("Advanced (3rd)");
+    else if (tp.reached_knockout) parts.push("Reached knockouts");
+    if (tp.elim_wins) parts.push(`${tp.elim_wins} KO round${tp.elim_wins > 1 ? "s" : ""} won`);
+    if (tp.champion) parts.push("Champions");
     return parts.length ? parts.join(" · ") : "No result yet";
-  };
-
-  // Breakdown line for a player: goals and assists with the points each earned.
-  const playerLabel = (goals, assists) => {
-    const parts = [];
-    if (goals) parts.push(`${goals}G +${goals * 3}`);
-    if (assists) parts.push(`${assists}A +${assists}`);
-    return parts.length ? parts.join(" · ") : "No points yet";
   };
 
   const rosterFor = (managerId) => {
@@ -81,10 +72,9 @@ export default function Standings() {
     const ps = mine.filter(p => p.pick_type === "player").map(p => {
       const pl = playerById[p.player_id];
       const s = statById[p.player_id] || { goals: 0, assists: 0 };
-      const goals = s.goals || 0, assists = s.assists || 0;
       return {
         id: p.player_id, name: pl?.name || "Unknown", country: pl?.teams?.name || "—",
-        goals, assists, pts: goals * 3 + assists, breakdown: playerLabel(goals, assists),
+        goals: s.goals || 0, assists: s.assists || 0, pts: (s.goals || 0) * 3 + (s.assists || 0),
       };
     }).sort((a, b) => b.pts - a.pts);
     const ts = mine.filter(p => p.pick_type === "team").map(p => {
@@ -146,7 +136,7 @@ export default function Standings() {
                         <div className="det-row" key={"p" + p.id}>
                           <div className="det-left">
                             <div className="det-name">{p.name}</div>
-                            <div className="det-sub">{p.country} · {p.breakdown}</div>
+                            <div className="det-sub">{p.country} · {p.goals}G {p.assists}A</div>
                           </div>
                           <div className="det-pts">{p.pts}</div>
                         </div>
