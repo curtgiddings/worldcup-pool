@@ -59,12 +59,12 @@ export default function Standings() {
   const teamLabel = (tp) => {
     if (!tp) return "No result yet";
     const parts = [];
-    if (tp.won_group) parts.push("Won group");
-    else if (tp.third_place) parts.push("Advanced (3rd)");
-    else if (tp.reached_knockout) parts.push("Reached knockouts");
-    if (tp.elim_wins) parts.push(`${tp.elim_wins} KO round${tp.elim_wins > 1 ? "s" : ""} won`);
-    if (tp.champion) parts.push("Champions");
-    return parts.length ? parts.join(" · ") : "No result yet";
+    if (tp.won_group) parts.push("Won group +3");
+    else if (tp.third_place) parts.push("Advanced 3rd +1");
+    else if (tp.reached_knockout) parts.push("Reached knockouts +2");
+    if (tp.elim_wins) parts.push(`${tp.elim_wins} KO win${tp.elim_wins > 1 ? "s" : ""} +${tp.elim_wins * 2}`);
+    if (tp.champion) parts.push("Champion +1");
+    return parts.length ? parts.join(" · ") : "Didn't make it out of group";
   };
 
   const rosterFor = (managerId) => {
