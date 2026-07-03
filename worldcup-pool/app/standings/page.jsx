@@ -51,7 +51,7 @@ export default function Standings() {
   const progById = Object.fromEntries(prog.map(tp => [tp.team_id, tp]));
 
   const teamPts = (tp) => tp
-    ? (tp.won_group ? 3 : tp.third_place ? 1 : tp.reached_knockout ? 2 : 0)
+    ? (tp.won_group ? 4 : tp.third_place ? 2 : tp.reached_knockout ? 3 : 0)
       + (tp.elim_wins || 0) * 2
       + (tp.champion ? 1 : 0)
     : 0;
@@ -59,9 +59,9 @@ export default function Standings() {
   const teamLabel = (tp) => {
     if (!tp) return "No result yet";
     const parts = [];
-    if (tp.won_group) parts.push("Won group +3");
-    else if (tp.third_place) parts.push("Advanced 3rd +1");
-    else if (tp.reached_knockout) parts.push("Reached knockouts +2");
+    if (tp.won_group) parts.push("Won group +4");
+    else if (tp.third_place) parts.push("Advanced 3rd +2");
+    else if (tp.reached_knockout) parts.push("Reached knockouts +3");
     if (tp.elim_wins) parts.push(`${tp.elim_wins} KO win${tp.elim_wins > 1 ? "s" : ""} +${tp.elim_wins * 2}`);
     if (tp.champion) parts.push("Champion +1");
     return parts.length ? parts.join(" · ") : "Didn't make it out of group";
